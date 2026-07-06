@@ -1,0 +1,20 @@
+{
+  "name": "keypass-auth",
+  "version": "1.0.0",
+  "description": "MVP de autenticación descentralizada con portabilidad criptográfica - KeyPass Auth",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "demo": "tsx src/demo.ts",
+    "demo:client": "tsx src/client/ephemeral-client.ts",
+    "demo:mobile": "tsx src/mobile/master-app.ts",
+    "demo:backend": "tsx src/backend/verifier.ts"
+  },
+  "keywords": ["webcrypto", "ecdsa", "decentralized-identity", "authentication"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.0.0"
+  }
+}
