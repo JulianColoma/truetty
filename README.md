@@ -1,57 +1,132 @@
-# KeyPass Auth - MVP
+# KeyPass Auth - MVP v2.0
 
 **Sistema de Autenticación Descentralizada con Portabilidad Criptográfica**
 
-MVP que emula el flujo de vinculación multidispositivo de WhatsApp Web, pero para autenticación web pura usando la **WebCrypto API** nativa del navegador.
+MVP completo que emula el flujo de vinculación multidispositivo de WhatsApp Web, pero para autenticación web pura usando la **WebCrypto API** nativa del navegador, con comunicación en tiempo real vía **WebSocket** y códigos **QR reales**.
 
 ## 🎯 Objetivo
 
 Permitir que un usuario autentique una sesión web en una notebook escaneando un código QR con su celular, sin contraseñas, sin tokens compartidos, sin SMS. La seguridad se basa puramente en criptografía de curva elíptica (ECDSA P-256).
 
-## 🏗️ Arquitectura
-
-El sistema tiene 3 componentes principales que interactúan mediante un flujo criptográfico:
+## 🏗️ Arquitectura v2.0
 
 ```
-┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│  CLIENTE WEB    │         │  APP MÓVIL      │         │  BACKEND        │
-│  (Notebook)     │         │  (Celular)      │         │  (Servidor)     │
-│                 │         │                 │         │                 │
-│ 1. Genera       │   QR    │ 3. Escanea QR   │  HTTP   │ 5. Verifica     │
-│    claves       │────────>│    y extrae     │────────>│    firma        │
-│    efímeras     │         │    clave pública│         │    criptográfica│
-│    ECDSA P-256  │         │                 │         │                 │
-│                 │         │ 4. Firma        │         │ 6. Autoriza     │
-│                 │         │    delegación   │         │    sesión       │
-└─────────────────┘         └─────────────────┘         └─────────────────┘
+┌─────────────────────┐                    ┌─────────────────────┐
+│   NOTEBOOK          │                    │   CELULAR           │
+│   (Frontend Web)    │                    │   (Frontend Mobile) │
+│                     │                    │                     │
+│ 1. Conecta WS       │                    │ 4. Escanea QR       │
+│ 2. Recibe salaId    │                    │    con cámara       │
+│ 3. Muestra QR real  │◄────── QR ────────►│ 5. Firma delegación │
+│    con clave pública│     (cámara)       │    con llave maestra│
+│ 6. Recibe delegación│                    │ 6. Envía por WS     │
+│    por WebSocket    │                    │                     │
+└──────────┬──────────┘                    └──────────┬──────────┘
+           │                                          │
+           │         WebSocket (tiempo real)          │
+           └──────────────────┬───────────────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │   SERVIDOR        │
+                    │   (Fastify + WS)  │
+                    │                   │
+                    │ • Gestión de salas│
+                    │ • Retransmisión   │
+                    │ • POST /api/verify│
+                    │ • Verificación    │
+                    │   criptográfica   │
+                    │ • Session tokens  │
+                    └───────────────────┘
 ```
 
-## 🔐 Flujo Criptográfico
+## 🚀 Inicio Rápido
 
-### Fase 1: Cliente Web Esclavo (Notebook)
-1. Genera un par de claves efímeras ECDSA P-256 usando `crypto.subtle.generateKey()`
-2. Exporta la clave pública en formato JWK (JSON Web Key)
-3. Codifica la clave pública en un código QR (simulado como JSON string)
+### Requisitos
+- **Node.js 18+** (para WebCrypto API nativa)
+- **npm** o **yarn**
+- **Cámara web** en el celular (para escanear QR)
 
-**Propiedad de seguridad:** La clave privada efímera NUNCA sale del navegador.
+### Instalación
 
-### Fase 2: App Móvil Maestra (Celular)
-1. Escanea el QR y extrae la clave pública efímera de la notebook
-2. Crea un payload de delegación: `{ autorizado: publicKeyJWK, expiracion: timestamp }`
-3. Firma el payload con su clave privada maestra usando ECDSA-SHA256
-4. Envía al backend: payload + firma + clave pública maestra
+```bash
+npm install
+```
 
-**Propiedad de seguridad:** La clave privada maestra NUNCA sale del celular (en producción estaría en Secure Enclave/Keystore).
+### Compilar Frontends
 
-### Fase 3: Verificador Backend (Servidor)
-1. Importa la clave pública maestra desde JWK
-2. Reconstruye el payload original (mismo JSON canónico)
-3. Convierte la firma del formato raw (WebCrypto) a DER (Node.js)
-4. Verifica matemáticamente la firma usando `crypto.createVerify()`
-5. Verifica que la delegación no haya expirado
-6. Autoriza la sesión si todo es válido
+```bash
+npx vite build
+```
 
-**Propiedad de seguridad:** El backend puede probar criptográficamente que el celular autorizó la sesión.
+### Iniciar Servidor
+
+```bash
+npm run dev
+```
+
+El servidor arranca en `http://localhost:3000` con:
+- 📱 **Notebook:** `http://localhost:3000/notebook/`
+- 📱 **Celular:** `http://localhost:3000/mobile/`
+- 🔌 **WebSocket:** `ws://localhost:3000/ws`
+- 🔐 **API Health:** `http://localhost:3000/api/health`
+- 🔐 **API Verify:** `http://localhost:3000/api/verify`
+
+### Prueba Automatizada (sin navegadores)
+
+```bash
+npx tsx src/test-e2e.ts
+```
+
+## 📱 Uso Manual (con navegadores)
+
+### Paso 1: Abrir la Notebook
+1. Abrí `http://localhost:3000/notebook/` en tu computadora
+2. La página genera claves efímeras y muestra un **código QR real**
+3. Esperá a que el celular escanee el QR
+
+### Paso 2: Escanear con el Celular
+1. Abrí `http://localhost:3000/mobile/` en tu celular
+2. Permití el acceso a la cámara
+3. Apuntá al código QR de la notebook
+4. El celular firma la delegación y la envía automáticamente
+5. La notebook se actualiza mostrando "¡Sesión Autorizada!"
+
+## 🔐 Flujo Criptográfico Completo
+
+### Fase 1: Notebook (Cliente Web)
+1. Se conecta al servidor por **WebSocket**
+2. Recibe un `salaId` único (UUID)
+3. Genera par de claves efímeras **ECDSA P-256** con `crypto.subtle`
+4. Exporta la clave pública en formato **JWK**
+5. Renderiza un **código QR real** con la clave pública + salaId
+6. Escucha el WebSocket esperando la delegación del celular
+
+**Seguridad:** La clave privada efímera NUNCA sale del navegador.
+
+### Fase 2: Celular (App Móvil)
+1. Carga/genera **llave maestra** ECDSA P-256 (persistida en localStorage)
+2. Escanea el QR con la **cámara del celular** (html5-qrcode)
+3. Parsea el QR → extrae clave pública efímera + salaId
+4. Construye payload de delegación: `{ autorizado, expiracion, emitido_en }`
+5. Firma el payload con la **llave maestra** usando WebCrypto
+6. Se conecta al WebSocket y envía el paquete al salaId
+7. Muestra "¡Dispositivo Autorizado!"
+
+**Seguridad:** La llave maestra NUNCA sale del celular.
+
+### Fase 3: Servidor (Backend)
+1. **Gestión de salas WebSocket:**
+   - Asigna salaId a la notebook
+   - Retransmite delegación del celular a la notebook
+2. **Endpoint POST /api/verify:**
+   - Recibe paquete de delegación
+   - Importa clave pública maestra desde JWK
+   - Convierte firma raw → DER (compatibilidad WebCrypto ↔ Node.js)
+   - Verifica firma ECDSA-SHA256 con `crypto.createVerify()`
+   - Verifica expiración
+   - Genera **sessionToken** si todo es válido
+
+**Seguridad:** Verificación matemática de la autorización.
 
 ## 📁 Estructura del Proyecto
 
@@ -59,108 +134,124 @@ El sistema tiene 3 componentes principales que interactúan mediante un flujo cr
 keypass-auth/
 ├── src/
 │   ├── shared/
-│   │   ├── types.ts          # Tipos TypeScript compartidos
-│   │   └── utils.ts          # Utilidades criptográficas (conversiones)
-│   ├── client/
-│   │   └── ephemeral-client.ts  # Cliente Web Esclavo
-│   ├── mobile/
-│   │   └── master-app.ts        # App Móvil Maestra
-│   ├── backend/
-│   │   └── verifier.ts          # Verificador Backend
-│   └── demo.ts                  # Demostración completa
+│   │   ├── types.ts              # Tipos TypeScript (JWK, WebSocket, etc.)
+│   │   └── utils.ts              # Utilidades criptográficas
+│   ├── server/
+│   │   ├── index.ts              # Servidor Fastify principal
+│   │   ├── rooms.ts              # Gestión de salas WebSocket
+│   │   └── crypto-verifier.ts    # Verificación criptográfica
+│   ├── frontend/
+│   │   ├── notebook/
+│   │   │   ├── index.html        # Vista de la notebook
+│   │   │   ├── main.ts           # Lógica del frontend notebook
+│   │   │   └── styles.css        # Estilos
+│   │   └── mobile/
+│   │       ├── index.html        # Vista del celular
+│   │       ├── main.ts           # Lógica del frontend mobile
+│   │       └── styles.css        # Estilos mobile-first
+│   ├── client/                   # MVP v1 (demo CLI)
+│   ├── mobile/                   # MVP v1 (demo CLI)
+│   ├── backend/                  # MVP v1 (demo CLI)
+│   ├── demo.ts                   # Demo v1
+│   └── test-e2e.ts               # Prueba end-to-end automatizada
+├── dist/
+│   └── frontend/                 # Frontends compilados (Vite)
 ├── package.json
 ├── tsconfig.json
+├── vite.config.ts
 └── README.md
 ```
 
-## 🚀 Instalación y Ejecución
+## 🔑 Conceptos Criptográficos
 
-### Requisitos
-- Node.js 18+ (para WebCrypto API nativa)
-- npm o yarn
-
-### Instalación
-```bash
-npm install
-```
-
-### Ejecutar Demo Completa
-```bash
-npm run demo
-```
-
-Esto ejecuta el flujo completo de los 3 componentes y muestra:
-- Generación de claves efímeras
-- QR simulado
-- Delegación criptográfica firmada
-- Verificación de firma en backend
-- Resultado final de autorización
-
-### Compilar TypeScript
-```bash
-npm run build
-```
-
-## 🔑 Conceptos Criptográficos Clave
-
-### ECDSA (Elliptic Curve Digital Signature Algorithm)
+### ECDSA P-256
 - Algoritmo de firma digital basado en curvas elípticas
-- Curva P-256: seguridad equivalente a RSA-3072 con claves mucho más pequeñas
+- Seguridad equivalente a RSA-3072 con claves mucho más pequeñas
 - Propiedades: integridad, autenticidad, no repudio
 
 ### JWK (JSON Web Key)
-- Estándar RFC 7517 para representar claves criptográficas en JSON
+- Estándar RFC 7517 para representar claves en JSON
 - Permite interoperabilidad entre sistemas
 - Contiene coordenadas X, Y de la clave pública
 
-### Formatos de Firma
-- **Raw (WebCrypto):** r || s concatenados (64 bytes para P-256)
-- **DER (Node.js):** ASN.1 SEQUENCE { INTEGER r, INTEGER s }
-- El backend convierte entre formatos para compatibilidad
+### Conversión de Firmas (raw ↔ DER)
+- **WebCrypto:** genera firmas en formato raw (r‖s, 64 bytes)
+- **Node.js crypto:** espera formato DER (ASN.1 SEQUENCE)
+- El servidor convierte entre formatos para compatibilidad
 
-### Delegación Criptográfica
-- El celular "delega" autoridad a la notebook firmando su clave pública
-- La firma prueba que el celular autorizó esa clave específica
-- La expiración limita la ventana de validez
+### WebSocket Rooms
+- Cada sesión tiene un `salaId` único (UUID)
+- La notebook se conecta y crea la sala
+- El celular se une a la sala usando el salaId del QR
+- El servidor retransmite mensajes entre ellos
 
 ## 🛡️ Propiedades de Seguridad
 
-✓ **Sin contraseñas:** No hay secretos compartidos que puedan ser robados  
-✓ **Sin tokens:** No hay JWTs ni session IDs que puedan ser interceptados  
-✓ **Sin SMS:** No hay códigos OTP que puedan ser phishing  
-✓ **Claves efímeras:** La notebook tiene claves temporales que expiran  
-✓ **Claves maestras protegidas:** El celular nunca expone su clave privada  
-✓ **Verificación matemática:** El backend prueba criptográficamente la autorización  
-✓ **Expiración temporal:** Las delegaciones tienen ventana de validez limitada  
-✓ **Resistencia a replay:** Cada delegación es única y no reutilizable  
+✓ **Sin contraseñas:** No hay secretos compartidos  
+✓ **Sin tokens estáticos:** Session tokens generados criptográficamente  
+✓ **Sin SMS/OTP:** No hay códigos que puedan ser phishing  
+✓ **Claves efímeras:** La notebook tiene claves temporales (2h)  
+✓ **Llave maestra protegida:** El celular nunca expone su clave privada  
+✓ **Verificación matemática:** Prueba criptográfica de autorización  
+✓ **Expiración temporal:** Delegaciones con ventana de validez limitada  
+✓ **Comunicación en tiempo real:** WebSocket para inmediatez  
+✓ **QR con salaId:** Cada QR es único y vincula dispositivos  
 
 ## 📊 Comparación con WhatsApp Web
 
-| Característica | WhatsApp Web | KeyPass Auth |
-|----------------|--------------|--------------|
-| Vinculación | QR + cifrado Signal | QR + ECDSA P-256 |
-| Claves maestras | En el celular | En el celular |
+| Característica | WhatsApp Web | KeyPass Auth v2 |
+|----------------|--------------|-----------------|
+| Vinculación | QR + Signal | QR + ECDSA P-256 |
+| Comunicación | HTTP polling | WebSocket tiempo real |
+| Claves maestras | Secure Enclave | localStorage (demo) |
 | Claves efímeras | En la web | En la web |
 | Verificación | Servidor centralizado | Backend del cliente |
-| Estándar | Protocolo propietario | WebCrypto API estándar |
-| Portabilidad | Solo WhatsApp | Cualquier servicio web |
+| QR | Código propietario | JSON estándar |
+| Estándar | Protocolo propietario | WebCrypto + WebSocket |
+| Session tokens | JWT propietario | Base64 (extensible a JWT) |
 
 ## 🔮 Próximos Pasos (Post-MVP)
 
-1. **Persistencia de claves maestras:** Integrar con Secure Enclave (iOS) / Keystore (Android)
-2. **Rotación de claves:** Mecanismo para renovar claves maestras periódicamente
-3. **Revocación de delegaciones:** Endpoint para revocar sesiones activas
-4. **Multi-dispositivo:** Soporte para múltiples notebooks simultáneas
-5. **Auditoría:** Logs de todas las delegaciones para compliance
-6. **SDK móvil:** Librerías nativas para iOS/Android
-7. **SDK web:** Librería JavaScript para integrar en cualquier sitio web
+1. **Secure Enclave/Keystore:** Mover llave maestra a hardware seguro
+2. **JWT firmado:** Reemplazar sessionToken con JWT real
+3. **Rotación de claves:** Renovar llaves maestras periódicamente
+4. **Revocación:** Endpoint para invalidar sesiones activas
+5. **Multi-dispositivo:** Soporte para múltiples notebooks simultáneas
+6. **Persistencia:** Base de datos para sesiones y auditoría
+7. **HTTPS/WSS:** TLS para producción
+8. **Rate limiting:** Prevenir abuso del endpoint /api/verify
+9. **SDK móvil:** Librerías nativas iOS/Android
+10. **SDK web:** Widget embebible para cualquier sitio
+
+## 🧪 Testing
+
+### Prueba Automatizada
+```bash
+npx tsx src/test-e2e.ts
+```
+Simula el flujo completo sin navegadores y verifica:
+- Conexión WebSocket
+- Generación de claves
+- Firma de delegación
+- Retransmisión por servidor
+- Verificación criptográfica
+- Generación de session token
+
+### Demo CLI (v1)
+```bash
+npm run demo
+```
+Ejecuta la demostración original sin frontends.
 
 ## 📚 Referencias
 
 - [WebCrypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
-- [ECDSA (Wikipedia)](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm)
+- [ECDSA](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm)
 - [JWK (RFC 7517)](https://tools.ietf.org/html/rfc7517)
-- [Node.js Crypto](https://nodejs.org/api/crypto.html)
+- [Fastify](https://www.fastify.io/)
+- [WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+- [html5-qrcode](https://github.com/mebjas/html5-qrcode)
+- [Vite](https://vitejs.dev/)
 
 ## 📄 Licencia
 
@@ -168,8 +259,13 @@ MIT
 
 ## 👨‍💻 Autor
 
-Desarrollado como MVP educativo para demostrar autenticación descentralizada con criptografía de curva elíptica.
+Desarrollado como MVP educativo para demostrar autenticación descentralizada con criptografía de curva elíptica, WebSocket y códigos QR reales.
 
 ---
 
-**Nota:** Este es un MVP educativo. Para producción, consultar con expertos en seguridad criptográfica y realizar auditorías de seguridad exhaustivas.
+**Nota:** Este es un MVP educativo. Para producción:
+- Mover llaves a Secure Enclave/Keystore
+- Implementar HTTPS/WSS
+- Usar JWT firmados para session tokens
+- Realizar auditoría de seguridad profesional
+- Implementar rate limiting y protección contra ataques

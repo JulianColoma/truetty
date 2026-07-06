@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KeyPass Auth - Notebook</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔐 KeyPass Auth</h1>
+      <p class="subtitle">Vinculación de Dispositivo</p>
+    </header>
+
+    <!-- Estado: Conectando -->
+    <div id="estado-conectando" class="estado active">
+      <div class="spinner"></div>
+      <p>Conectando al servidor...</p>
+    </div>
+
+    <!-- Estado: Esperando escaneo (QR) -->
+    <div id="estado-esperando" class="estado">
+      <div class="qr-container">
+        <div id="qr-code" class="qr-code"></div>
+      </div>
+      <div class="info-box">
+        <p class="info-title">📱 Escaneá este código con tu celular</p>
+        <p class="info-text">
+          Abrí la app <strong>KeyPass Authenticator</strong> en tu celular
+          y escaneá este código QR para autorizar esta sesión.
+        </p>
+      </div>
+      <div class="sala-info">
+        <span class="label">Sala:</span>
+        <code id="sala-id">-</code>
+      </div>
+      <div class="status-bar">
+        <span class="status-dot waiting"></span>
+        <span>Esperando autorización del celular...</span>
+      </div>
+    </div>
+
+    <!-- Estado: Verificando -->
+    <div id="estado-verificando" class="estado">
+      <div class="spinner"></div>
+      <p>Verificando delegación criptográfica...</p>
+    </div>
+
+    <!-- Estado: Autorizado -->
+    <div id="estado-autorizado" class="estado">
+      <div class="success-icon">✅</div>
+      <h2>¡Sesión Autorizada con Éxito!</h2>
+      <p>Tu dispositivo ha sido vinculado correctamente.</p>
+      <div class="token-box">
+        <span class="label">Session Token:</span>
+        <code id="session-token">-</code>
+      </div>
+      <div class="details-box">
+        <h3>Detalles de la sesión:</h3>
+        <ul id="session-details"></ul>
+      </div>
+    </div>
+
+    <!-- Estado: Error -->
+    <div id="estado-error" class="estado">
+      <div class="error-icon">❌</div>
+      <h2>Error de Autorización</h2>
+      <p id="error-message">-</p>
+      <button id="btn-reintentar" class="btn-primary">Reintentar</button>
+    </div>
+
+    <footer>
+      <p>KeyPass Auth v2.0 — Autenticación descentralizada con WebCrypto</p>
+    </footer>
+  </div>
+
+  <script type="module" src="main.ts"></script>
+</body>
+</html>

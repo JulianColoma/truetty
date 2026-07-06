@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>KeyPass Authenticator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">🔐</div>
+      <h1>KeyPass</h1>
+      <p class="subtitle">Authenticator</p>
+    </header>
+
+    <!-- Estado: Inicial / Escaneando -->
+    <div id="estado-escaneando" class="estado active">
+      <div class="scanner-container">
+        <div id="qr-reader" class="qr-reader"></div>
+      </div>
+      <div class="instructions">
+        <p class="instruction-title">📷 Escaneá el código QR</p>
+        <p class="instruction-text">
+          Apuntá la cámara al código QR que se muestra en la pantalla de tu computadora para autorizar la sesión.
+        </p>
+      </div>
+      <div class="master-key-status" id="master-key-status">
+        <span class="status-indicator pending"></span>
+        <span>Verificando llave maestra...</span>
+      </div>
+    </div>
+
+    <!-- Estado: Procesando -->
+    <div id="estado-procesando" class="estado">
+      <div class="processing-icon">
+        <div class="spinner"></div>
+      </div>
+      <h2>Procesando...</h2>
+      <p id="processing-text">Firmando delegación criptográfica</p>
+      <div class="steps">
+        <div class="step" id="step-scan">
+          <span class="step-icon">⏳</span>
+          <span>QR escaneado</span>
+        </div>
+        <div class="step" id="step-sign">
+          <span class="step-icon">⏳</span>
+          <span>Firma criptográfica</span>
+        </div>
+        <div class="step" id="step-send">
+          <span class="step-icon">⏳</span>
+          <span>Enviando al servidor</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estado: Éxito -->
+    <div id="estado-exito" class="estado">
+      <div class="success-animation">
+        <div class="success-circle">
+          <span class="success-check">✓</span>
+        </div>
+      </div>
+      <h2>¡Dispositivo Autorizado!</h2>
+      <p class="success-text">La sesión fue autorizada exitosamente.</p>
+      <div class="device-info">
+        <p class="device-label">Dispositivo autorizado:</p>
+        <p class="device-name" id="device-name">Notebook</p>
+        <p class="device-sala" id="device-sala">Sala: -</p>
+      </div>
+      <button id="btn-scan-again" class="btn-secondary">Escanear otro código</button>
+    </div>
+
+    <!-- Estado: Error -->
+    <div id="estado-error" class="estado">
+      <div class="error-animation">
+        <div class="error-circle">
+          <span class="error-x">✗</span>
+        </div>
+      </div>
+      <h2>Error</h2>
+      <p id="error-text" class="error-text">-</p>
+      <button id="btn-retry" class="btn-primary">Reintentar</button>
+    </div>
+
+    <footer>
+      <p>KeyPass Auth v2.0</p>
+      <p class="footer-sub">Autenticación descentralizada</p>
+    </footer>
+  </div>
+
+  <script type="module" src="main.ts"></script>
+</body>
+</html>
