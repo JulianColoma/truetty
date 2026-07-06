@@ -1,4 +1,4 @@
-# KeyPass Auth - MVP v2.0
+# KeyPass Auth - MVP v2.1
 
 **Sistema de Autenticación Descentralizada con Portabilidad Criptográfica**
 
@@ -8,7 +8,7 @@ MVP completo que emula el flujo de vinculación multidispositivo de WhatsApp Web
 
 Permitir que un usuario autentique una sesión web en una notebook escaneando un código QR con su celular, sin contraseñas, sin tokens compartidos, sin SMS. La seguridad se basa puramente en criptografía de curva elíptica (ECDSA P-256).
 
-## 🏗️ Arquitectura v2.0
+## 🏗️ Arquitectura v2.1
 
 ```
 ┌─────────────────────┐                    ┌─────────────────────┐
@@ -58,7 +58,7 @@ npm install
 npx vite build
 ```
 
-### Iniciar Servidor
+### Iniciar Servidor (localhost)
 
 ```bash
 npm run dev
@@ -71,25 +71,56 @@ El servidor arranca en `http://localhost:3000` con:
 - 🔐 **API Health:** `http://localhost:3000/api/health`
 - 🔐 **API Verify:** `http://localhost:3000/api/verify`
 
+### Iniciar Servidor (Red Local - Dispositivos Reales)
+
+```bash
+# Obtener IPs y URLs de acceso
+npm run ip
+
+# Iniciar servidor accesible desde la red
+npm run dev:network
+```
+
+Ver [docs/TESTING_REAL_DEVICES.md](./docs/TESTING_REAL_DEVICES.md) para guía completa.
+
 ### Prueba Automatizada (sin navegadores)
 
 ```bash
-npx tsx src/test-e2e.ts
+npm run test:e2e
 ```
 
 ## 📱 Uso Manual (con navegadores)
 
-### Paso 1: Abrir la Notebook
+### Modo 1: Testing en localhost (mismo dispositivo)
+
+#### Paso 1: Abrir la Notebook
 1. Abrí `http://localhost:3000/notebook/` en tu computadora
 2. La página genera claves efímeras y muestra un **código QR real**
 3. Esperá a que el celular escanee el QR
 
-### Paso 2: Escanear con el Celular
+#### Paso 2: Escanear con el Celular
 1. Abrí `http://localhost:3000/mobile/` en tu celular
 2. Permití el acceso a la cámara
 3. Apuntá al código QR de la notebook
 4. El celular firma la delegación y la envía automáticamente
 5. La notebook se actualiza mostrando "¡Sesión Autorizada!"
+
+### Modo 2: Testing con dispositivos reales (red local)
+
+Ver [docs/TESTING_REAL_DEVICES.md](./docs/TESTING_REAL_DEVICES.md) para instrucciones detalladas.
+
+**Resumen rápido:**
+```bash
+# 1. Obtener IP de la notebook
+npm run ip
+
+# 2. Iniciar servidor accesible desde la red
+npm run dev:network
+
+# 3. En la notebook: http://<IP>:3000/notebook/
+# 4. En el celular: http://<IP>:3000/mobile/
+# 5. Escanear QR con el celular
+```
 
 ## 🔐 Flujo Criptográfico Completo
 

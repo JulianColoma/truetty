@@ -1,15 +1,18 @@
 {
   "name": "keypass-auth",
-  "version": "2.0.0",
-  "description": "MVP v2 - KeyPass Auth con WebSocket, QR real y verificación end-to-end",
+  "version": "2.1.0",
+  "description": "MVP v2.1 - KeyPass Auth con testing en red local y mejoras de producción",
   "type": "module",
   "scripts": {
     "dev": "tsx src/server/index.ts",
+    "dev:network": "tsx src/scripts/dev-network.ts",
     "dev:frontend": "vite",
+    "ip": "tsx src/scripts/get-local-ip.ts",
     "build": "tsc && vite build",
     "build:server": "tsc",
     "build:frontend": "vite build",
     "demo": "tsx src/demo.ts",
+    "test:e2e": "tsx src/test-e2e.ts",
     "preview": "vite preview"
   },
   "keywords": ["webcrypto", "ecdsa", "decentralized-identity", "authentication", "websocket"],
