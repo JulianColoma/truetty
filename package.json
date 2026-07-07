@@ -13,6 +13,7 @@
     "build": "tsc && vite build",
     "build:server": "tsc",
     "build:frontend": "vite build",
+    "build:sdk": "vite build --config vite.sdk.config.ts",
     "demo": "tsx src/demo.ts",
     "test:e2e": "tsx src/test-e2e.ts",
     "test:jwt": "tsx src/test-jwt.ts",
