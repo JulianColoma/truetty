@@ -30,6 +30,7 @@ import {
   limpiarSalasInactivas,
 } from "./rooms.js";
 import { verificarPaquete } from "./crypto-verifier.js";
+import { initJWT } from "./jwt.js";
 import type {
   WSClientMessage,
   DelegationResult,
@@ -153,6 +154,44 @@ server.post<{
   }
 });
 
+/**
+ * GET /api/verify-jwt
+ * 
+ * Endpoint para verificar un JWT.
+ * Recibe un token en el header Authorization: Bearer <token>
+ * Retorna el payload decodificado si el token es válido
+ */
+server.get<{
+  Headers: { authorization?: string };
+}>("/api/verify-jwt", async (request, reply) => {
+  const authHeader = request.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return reply.status(401).send({
+      valido: false,
+      mensaje: "Token no proporcionado. Use header Authorization: Bearer <token>",
+    });
+  }
+
+  const token = authHeader.substring(7); // Remover "Bearer "
+
+  try {
+    const { verifyJWT } = await import("./jwt.js");
+    const payload = verifyJWT(token);
+
+    return reply.status(200).send({
+      valido: true,
+      mensaje: "Token válido",
+      payload,
+    });
+  } catch (error) {
+    return reply.status(401).send({
+      valido: false,
+      mensaje: error instanceof Error ? error.message : "Token inválido",
+    });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // WEBSOCKET SECURE (WSS)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -242,6 +281,9 @@ server.get("/mobile", async (request, reply) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // INICIO DEL SERVIDOR HTTPS
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Inicializar módulo JWT
+initJWT();
 
 setInterval(limpiarSalasInactivas, 5 * 60 * 1000);
 
