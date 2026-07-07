@@ -16,6 +16,7 @@
     "demo": "tsx src/demo.ts",
     "test:e2e": "tsx src/test-e2e.ts",
     "test:jwt": "tsx src/test-jwt.ts",
+    "test:revoke": "tsx src/test-revoke.ts",
     "preview": "vite preview"
   },
   "keywords": [

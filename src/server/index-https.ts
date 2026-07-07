@@ -209,6 +209,163 @@ server.get<{
   }
 });
 
+/**
+ * POST /api/revoke
+ * 
+ * Endpoint para revocar una sesión por su ID.
+ * Marca la sesión como "revocada" en la base de datos.
+ */
+server.post<{
+  Body: { sessionId: string };
+}>("/api/revoke", async (request, reply) => {
+  const { sessionId } = request.body;
+
+  if (!sessionId) {
+    return reply.status(400).send({
+      valido: false,
+      mensaje: "sessionId es requerido",
+    });
+  }
+
+  console.log(`\n🚫 [API] Revocando sesión: ${sessionId}`);
+
+  const { revocarSesion, obtenerSesion, registrarAuditLog } = await import("./database.js");
+  
+  // Verificar que la sesión exista
+  const session = obtenerSesion(sessionId);
+  if (!session) {
+    return reply.status(404).send({
+      valido: false,
+      mensaje: "Sesión no encontrada",
+    });
+  }
+
+  if (session.estado !== "activa") {
+    return reply.status(400).send({
+      valido: false,
+      mensaje: `La sesión ya está ${session.estado}`,
+    });
+  }
+
+  // Revocar la sesión
+  const revocado = revocarSesion(sessionId);
+
+  if (revocado) {
+    // Registrar en auditoría
+    registrarAuditLog({
+      evento: "sesion_revocada",
+      salaId: session.salaId,
+      sessionId,
+      detalles: JSON.stringify({
+        motivo: "revocación_manual",
+        revocado_en: Date.now(),
+      }),
+      timestamp: Date.now(),
+    });
+
+    console.log(`✅ [API] Sesión revocada exitosamente`);
+    return reply.status(200).send({
+      valido: true,
+      mensaje: "Sesión revocada exitosamente",
+      sessionId,
+      revocado_en: Date.now(),
+    });
+  } else {
+    return reply.status(500).send({
+      valido: false,
+      mensaje: "Error al revocar la sesión",
+    });
+  }
+});
+
+/**
+ * POST /api/revoke-by-sala
+ * 
+ * Endpoint para revocar todas las sesiones activas de una sala.
+ * Útil para cerrar todas las sesiones de un dispositivo específico.
+ */
+server.post<{
+  Body: { salaId: string };
+}>("/api/revoke-by-sala", async (request, reply) => {
+  const { salaId } = request.body;
+
+  if (!salaId) {
+    return reply.status(400).send({
+      valido: false,
+      mensaje: "salaId es requerido",
+    });
+  }
+
+  console.log(`\n🚫 [API] Revocando sesiones de sala: ${salaId}`);
+
+  const { obtenerSesionPorSala, revocarSesion, registrarAuditLog } = await import("./database.js");
+  
+  // Buscar sesión activa de la sala
+  const session = obtenerSesionPorSala(salaId);
+  
+  if (!session) {
+    return reply.status(404).send({
+      valido: false,
+      mensaje: "No hay sesiones activas para esta sala",
+    });
+  }
+
+  // Revocar la sesión
+  const revocado = revocarSesion(session.id);
+
+  if (revocado) {
+    // Registrar en auditoría
+    registrarAuditLog({
+      evento: "sesion_revocada_por_sala",
+      salaId,
+      sessionId: session.id,
+      detalles: JSON.stringify({
+        motivo: "revocación_por_sala",
+        revocado_en: Date.now(),
+      }),
+      timestamp: Date.now(),
+    });
+
+    console.log(`✅ [API] Sesión de sala revocada exitosamente`);
+    return reply.status(200).send({
+      valido: true,
+      mensaje: "Sesiones de la sala revocadas exitosamente",
+      salaId,
+      sessionId: session.id,
+      revocado_en: Date.now(),
+    });
+  } else {
+    return reply.status(500).send({
+      valido: false,
+      mensaje: "Error al revocar las sesiones",
+    });
+  }
+});
+
+/**
+ * GET /api/sessions
+ * 
+ * Endpoint para listar todas las sesiones activas.
+ */
+server.get("/api/sessions", async () => {
+  const { obtenerSesionesActivas } = await import("./database.js");
+  const sessions = obtenerSesionesActivas();
+
+  return {
+    status: "ok",
+    timestamp: Date.now(),
+    total: sessions.length,
+    sesiones: sessions.map((s) => ({
+      id: s.id,
+      salaId: s.salaId,
+      estado: s.estado,
+      creado_en: s.creado_en,
+      expira_en: s.expira_en,
+      dispositivo_id: s.dispositivo_id,
+    })),
+  };
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // WEBSOCKET SECURE (WSS)
 // ═══════════════════════════════════════════════════════════════════════════
