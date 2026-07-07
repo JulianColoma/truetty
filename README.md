@@ -83,6 +83,25 @@ npm run dev:network
 
 Ver [docs/TESTING_REAL_DEVICES.md](./docs/TESTING_REAL_DEVICES.md) para guía completa.
 
+### Iniciar Servidor HTTPS (Producción)
+
+```bash
+# Generar certificados TLS auto-firmados (solo desarrollo)
+npm run gen-certs
+
+# Iniciar servidor HTTPS
+npm run dev:https
+```
+
+El servidor arranca en `https://localhost:3443` con:
+- 🔐 **Notebook:** `https://localhost:3443/notebook/`
+- 🔐 **Celular:** `https://localhost:3443/mobile/`
+- 🔌 **WebSocket Secure:** `wss://localhost:3443/ws`
+- 🔐 **API Health:** `https://localhost:3443/api/health`
+- 🔐 **API Verify:** `https://localhost:3443/api/verify`
+
+**Importante:** Los navegadores mostrarán una advertencia de seguridad con certificados auto-firmados. Ver [docs/HTTPS_SETUP.md](./docs/HTTPS_SETUP.md) para configuración completa.
+
 ### Prueba Automatizada (sin navegadores)
 
 ```bash
@@ -121,6 +140,23 @@ npm run dev:network
 # 4. En el celular: http://<IP>:3000/mobile/
 # 5. Escanear QR con el celular
 ```
+
+### Modo 3: Testing con HTTPS (recomendado para producción)
+
+```bash
+# 1. Generar certificados TLS
+npm run gen-certs
+
+# 2. Iniciar servidor HTTPS
+npm run dev:https
+
+# 3. En la notebook: https://localhost:3443/notebook/
+# 4. En el celular: https://<IP>:3443/mobile/
+# 5. Aceptar certificado auto-firmado en el navegador
+# 6. Escanear QR con el celular
+```
+
+Ver [docs/HTTPS_SETUP.md](./docs/HTTPS_SETUP.md) para configuración completa con Let's Encrypt, Nginx, o ngrok.
 
 ## 🔐 Flujo Criptográfico Completo
 
