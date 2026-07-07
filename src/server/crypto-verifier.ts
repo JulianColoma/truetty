@@ -12,6 +12,7 @@
  */
 
 import { createVerify, createPublicKey } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
   JWK,
   DelegationPayload,
@@ -20,6 +21,7 @@ import type {
 } from "../shared/types.js";
 import { hexToBuffer } from "../shared/utils.js";
 import { generateJWT } from "./jwt.js";
+import { crearSesion, registrarDelegacion, registrarAuditLog } from "./database.js";
 
 /**
  * Convierte una clave pública JWK a formato PEM para Node.js crypto
@@ -189,6 +191,19 @@ export function verificarPaquete(
 
   if (!firmaValida) {
     console.log("❌ [VERIFY] Firma inválida");
+    
+    // Registrar delegación inválida en DB
+    registrarDelegacion({
+      id: randomUUID(),
+      salaId,
+      payload: JSON.stringify(paquete.payload),
+      firma: paquete.firma,
+      clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+      valido: false,
+      creado_en: Date.now(),
+      mensaje: "Firma criptográfica inválida",
+    });
+    
     return {
       valido: false,
       mensaje: "Firma criptográfica inválida. El paquete fue alterado o la clave no corresponde.",
@@ -202,6 +217,19 @@ export function verificarPaquete(
 
   if (expirado) {
     console.log("❌ [VERIFY] Delegación expirada");
+    
+    // Registrar delegación expirada en DB
+    registrarDelegacion({
+      id: randomUUID(),
+      salaId,
+      payload: JSON.stringify(paquete.payload),
+      firma: paquete.firma,
+      clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+      valido: false,
+      creado_en: Date.now(),
+      mensaje: "Delegación expirada",
+    });
+    
     return {
       valido: false,
       mensaje: `Delegación expirada hace ${Math.abs(tiempo_restante_ms) / 1000} segundos.`,
@@ -218,9 +246,47 @@ export function verificarPaquete(
 
   // PASO 4: Generar JWT firmado
   const sessionToken = generarSessionToken(salaId, paquete.payload);
+  const sessionId = randomUUID();
 
   console.log("🎉 [VERIFY] DELEGACIÓN AUTORIZADA");
   console.log(`   JWT: ${sessionToken.substring(0, 50)}...`);
+
+  // PASO 5: Registrar delegación exitosa en DB
+  registrarDelegacion({
+    id: randomUUID(),
+    salaId,
+    payload: JSON.stringify(paquete.payload),
+    firma: paquete.firma,
+    clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+    valido: true,
+    creado_en: Date.now(),
+  });
+
+  // PASO 6: Crear sesión en DB
+  crearSesion({
+    id: sessionId,
+    salaId,
+    jwt: sessionToken,
+    clavePublicaEfimera: JSON.stringify(paquete.payload.autorizado),
+    clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+    estado: "activa",
+    creado_en: Date.now(),
+    expira_en: paquete.payload.expiracion,
+    dispositivo_id: paquete.payload.dispositivo_id,
+  });
+
+  // PASO 7: Registrar evento en auditoría
+  registrarAuditLog({
+    evento: "sesion_creada",
+    salaId,
+    sessionId,
+    detalles: JSON.stringify({
+      algoritmo: paquete.algoritmo,
+      curva: paquete.curva,
+      expira_en: paquete.payload.expiracion,
+    }),
+    timestamp: Date.now(),
+  });
 
   return {
     valido: true,

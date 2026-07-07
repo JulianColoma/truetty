@@ -31,6 +31,7 @@ import {
 } from "./rooms.js";
 import { verificarPaquete } from "./crypto-verifier.js";
 import { initJWT } from "./jwt.js";
+import { initDatabase, obtenerEstadisticasDB, cerrarDatabase } from "./database.js";
 import type {
   WSClientMessage,
   DelegationResult,
@@ -103,6 +104,7 @@ await server.register(fastifyStatic, {
 
 server.get("/api/health", async () => {
   const stats = obtenerEstadisticas();
+  const dbStats = obtenerEstadisticasDB();
   return {
     status: "ok",
     servicio: "KeyPass Auth Server (HTTPS)",
@@ -110,6 +112,21 @@ server.get("/api/health", async () => {
     timestamp: Date.now(),
     tls: true,
     salas: stats,
+    database: dbStats,
+  };
+});
+
+/**
+ * GET /api/stats
+ * 
+ * Endpoint para obtener estadísticas detalladas de la base de datos
+ */
+server.get("/api/stats", async () => {
+  const dbStats = obtenerEstadisticasDB();
+  return {
+    status: "ok",
+    timestamp: Date.now(),
+    estadisticas: dbStats,
   };
 });
 
@@ -285,6 +302,9 @@ server.get("/mobile", async (request, reply) => {
 // Inicializar módulo JWT
 initJWT();
 
+// Inicializar base de datos
+initDatabase();
+
 setInterval(limpiarSalasInactivas, 5 * 60 * 1000);
 
 try {
@@ -298,6 +318,7 @@ try {
   console.log("▓" + `  🔌 WebSocket: wss://localhost:${PORT}/ws`.padEnd(68) + "▓");
   console.log("▓" + `  📋 API Health: https://localhost:${PORT}/api/health`.padEnd(68) + "▓");
   console.log("▓" + `  🔐 Verify API: https://localhost:${PORT}/api/verify`.padEnd(68) + "▓");
+  console.log("▓" + `  📊 Stats API: https://localhost:${PORT}/api/stats`.padEnd(68) + "▓");
   console.log("▓" + " ".repeat(68) + "▓");
   console.log("▓" + "  📱 Frontends:".padEnd(68) + "▓");
   console.log("▓" + `     Notebook: https://localhost:${PORT}/notebook/`.padEnd(68) + "▓");
@@ -310,3 +331,19 @@ try {
   console.error("❌ Error iniciando servidor HTTPS:", err);
   process.exit(1);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MANEJO DE CIERRE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Cerrar base de datos al terminar el proceso
+process.on("SIGINT", () => {
+  console.log("\n🛑 Cerrando servidor...");
+  cerrarDatabase();
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  cerrarDatabase();
+  process.exit(0);
+});
