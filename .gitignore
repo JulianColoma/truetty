@@ -1,5 +1,8 @@
 node_modules/
 dist/
+certs/
+keys/
+data/
 .DS_Store
 *.log
 .env

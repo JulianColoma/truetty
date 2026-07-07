@@ -2,16 +2,17 @@
  * VERIFICADOR CRIPTOGRÁFICO PARA EL SERVIDOR
  * 
  * Reutiliza la lógica de verificación ECDSA del MVP v1
- * Adaptada para funcionar con Fastify y retornar sessionTokens
+ * Adaptada para funcionar con Fastify y retornar JWTs
  * 
  * Flujo:
  * 1. Recibe el paquete de delegación (payload + firma + clave pública maestra)
  * 2. Verifica la firma ECDSA P-256 (convirtiendo raw → DER)
  * 3. Verifica que no esté expirada
- * 4. Genera un sessionToken si todo es válido
+ * 4. Genera un JWT firmado si todo es válido
  */
 
-import { createVerify, createPublicKey, randomUUID } from "node:crypto";
+import { createVerify, createPublicKey } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
   JWK,
   DelegationPayload,
@@ -19,6 +20,8 @@ import type {
   VerifyResponse,
 } from "../shared/types.js";
 import { hexToBuffer } from "../shared/utils.js";
+import { generateJWT } from "./jwt.js";
+import { crearSesion, registrarDelegacion, registrarAuditLog } from "./database.js";
 
 /**
  * Convierte una clave pública JWK a formato PEM para Node.js crypto
@@ -154,19 +157,17 @@ function verificarExpiracion(payload: DelegationPayload): {
 }
 
 /**
- * Genera un sessionToken para sesiones autorizadas
- * En producción, esto sería un JWT firmado o un token opaco almacenado en DB
+ * Genera un JWT firmado para sesiones autorizadas
+ * Reemplaza el session token simple con un token criptográficamente firmado
  */
-function generarSessionToken(salaId: string): string {
-  const payload = {
-    sala: salaId,
-    emitido: Date.now(),
-    nonce: randomUUID(),
-  };
-  // Para el MVP, usamos un token Base64 simple
-  // En producción: firmar con clave secreta del servidor
-  const json = JSON.stringify(payload);
-  return Buffer.from(json).toString("base64url");
+function generarSessionToken(salaId: string, payload: DelegationPayload): string {
+  // Generar JWT con la información de la sesión
+  const jwtToken = generateJWT({
+    salaId: salaId,
+    clavePublicaEfimera: payload.autorizado,
+  });
+  
+  return jwtToken;
 }
 
 /**
@@ -190,6 +191,19 @@ export function verificarPaquete(
 
   if (!firmaValida) {
     console.log("❌ [VERIFY] Firma inválida");
+    
+    // Registrar delegación inválida en DB
+    registrarDelegacion({
+      id: randomUUID(),
+      salaId,
+      payload: JSON.stringify(paquete.payload),
+      firma: paquete.firma,
+      clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+      valido: false,
+      creado_en: Date.now(),
+      mensaje: "Firma criptográfica inválida",
+    });
+    
     return {
       valido: false,
       mensaje: "Firma criptográfica inválida. El paquete fue alterado o la clave no corresponde.",
@@ -203,6 +217,19 @@ export function verificarPaquete(
 
   if (expirado) {
     console.log("❌ [VERIFY] Delegación expirada");
+    
+    // Registrar delegación expirada en DB
+    registrarDelegacion({
+      id: randomUUID(),
+      salaId,
+      payload: JSON.stringify(paquete.payload),
+      firma: paquete.firma,
+      clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+      valido: false,
+      creado_en: Date.now(),
+      mensaje: "Delegación expirada",
+    });
+    
     return {
       valido: false,
       mensaje: `Delegación expirada hace ${Math.abs(tiempo_restante_ms) / 1000} segundos.`,
@@ -217,11 +244,49 @@ export function verificarPaquete(
   // (La clave pública efímera en el payload debe ser la que la notebook generó)
   // Esto ya está implícito en el flujo: la notebook envía su clave en el QR
 
-  // PASO 4: Generar sessionToken
-  const sessionToken = generarSessionToken(salaId);
+  // PASO 4: Generar JWT firmado
+  const sessionToken = generarSessionToken(salaId, paquete.payload);
+  const sessionId = randomUUID();
 
   console.log("🎉 [VERIFY] DELEGACIÓN AUTORIZADA");
-  console.log(`   SessionToken: ${sessionToken.substring(0, 30)}...`);
+  console.log(`   JWT: ${sessionToken.substring(0, 50)}...`);
+
+  // PASO 5: Registrar delegación exitosa en DB
+  registrarDelegacion({
+    id: randomUUID(),
+    salaId,
+    payload: JSON.stringify(paquete.payload),
+    firma: paquete.firma,
+    clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+    valido: true,
+    creado_en: Date.now(),
+  });
+
+  // PASO 6: Crear sesión en DB
+  crearSesion({
+    id: sessionId,
+    salaId,
+    jwt: sessionToken,
+    clavePublicaEfimera: JSON.stringify(paquete.payload.autorizado),
+    clavePublicaMaestra: JSON.stringify(paquete.clave_publica_maestra),
+    estado: "activa",
+    creado_en: Date.now(),
+    expira_en: paquete.payload.expiracion,
+    dispositivo_id: paquete.payload.dispositivo_id,
+  });
+
+  // PASO 7: Registrar evento en auditoría
+  registrarAuditLog({
+    evento: "sesion_creada",
+    salaId,
+    sessionId,
+    detalles: JSON.stringify({
+      algoritmo: paquete.algoritmo,
+      curva: paquete.curva,
+      expira_en: paquete.payload.expiracion,
+    }),
+    timestamp: Date.now(),
+  });
 
   return {
     valido: true,

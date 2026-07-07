@@ -1,4 +1,4 @@
-# KeyPass Auth - MVP v2.0
+# KeyPass Auth - MVP v2.1
 
 **Sistema de Autenticación Descentralizada con Portabilidad Criptográfica**
 
@@ -8,7 +8,7 @@ MVP completo que emula el flujo de vinculación multidispositivo de WhatsApp Web
 
 Permitir que un usuario autentique una sesión web en una notebook escaneando un código QR con su celular, sin contraseñas, sin tokens compartidos, sin SMS. La seguridad se basa puramente en criptografía de curva elíptica (ECDSA P-256).
 
-## 🏗️ Arquitectura v2.0
+## 🏗️ Arquitectura v2.1
 
 ```
 ┌─────────────────────┐                    ┌─────────────────────┐
@@ -35,9 +35,34 @@ Permitir que un usuario autentique una sesión web en una notebook escaneando un
                     │ • POST /api/verify│
                     │ • Verificación    │
                     │   criptográfica   │
-                    │ • Session tokens  │
+                    │ • JWT firmado     │
+                    │ • SQLite DB       │
+                    │ • Revocación      │
                     └───────────────────┘
 ```
+
+## ✨ Características v2.1
+
+### 🔐 Seguridad
+- **JWT firmado con ECDSA P-256**: Tokens de sesión criptográficamente firmados
+- **HTTPS/WSS**: Soporte completo para TLS con certificados auto-firmados o Let's Encrypt
+- **Revocación de sesiones**: Endpoint para invalidar sesiones comprometidas
+- **KeyStore abstracto**: Interfaz para Secure Enclave (iOS) y Keystore (Android)
+
+### 💾 Persistencia
+- **SQLite**: Base de datos para sesiones, delegaciones y auditoría
+- **Historial completo**: Registro de todas las delegaciones (válidas e inválidas)
+- **Logs de auditoría**: Trazabilidad de eventos importantes
+
+### 🌐 Redes y Despliegue
+- **Testing en red local**: Scripts para probar con dispositivos reales
+- **HTTPS listo**: Configuración para producción con TLS
+- **Multi-plataforma**: Funciona en Web, iOS y Android (con implementaciones nativas)
+
+### 📊 Monitoreo
+- **Endpoint /api/stats**: Estadísticas de sesiones y delegaciones
+- **Endpoint /api/sessions**: Lista de sesiones activas
+- **Logs detallados**: Información completa de operaciones
 
 ## 🚀 Inicio Rápido
 
@@ -58,7 +83,7 @@ npm install
 npx vite build
 ```
 
-### Iniciar Servidor
+### Iniciar Servidor (localhost)
 
 ```bash
 npm run dev
@@ -71,25 +96,92 @@ El servidor arranca en `http://localhost:3000` con:
 - 🔐 **API Health:** `http://localhost:3000/api/health`
 - 🔐 **API Verify:** `http://localhost:3000/api/verify`
 
+### Iniciar Servidor (Red Local - Dispositivos Reales)
+
+```bash
+# Obtener IPs y URLs de acceso
+npm run ip
+
+# Iniciar servidor accesible desde la red
+npm run dev:network
+```
+
+Ver [docs/TESTING_REAL_DEVICES.md](./docs/TESTING_REAL_DEVICES.md) para guía completa.
+
+### Iniciar Servidor HTTPS (Producción)
+
+```bash
+# Generar certificados TLS auto-firmados (solo desarrollo)
+npm run gen-certs
+
+# Iniciar servidor HTTPS
+npm run dev:https
+```
+
+El servidor arranca en `https://localhost:3443` con:
+- 🔐 **Notebook:** `https://localhost:3443/notebook/`
+- 🔐 **Celular:** `https://localhost:3443/mobile/`
+- 🔌 **WebSocket Secure:** `wss://localhost:3443/ws`
+- 🔐 **API Health:** `https://localhost:3443/api/health`
+- 🔐 **API Verify:** `https://localhost:3443/api/verify`
+
+**Importante:** Los navegadores mostrarán una advertencia de seguridad con certificados auto-firmados. Ver [docs/HTTPS_SETUP.md](./docs/HTTPS_SETUP.md) para configuración completa.
+
 ### Prueba Automatizada (sin navegadores)
 
 ```bash
-npx tsx src/test-e2e.ts
+npm run test:e2e
 ```
 
 ## 📱 Uso Manual (con navegadores)
 
-### Paso 1: Abrir la Notebook
+### Modo 1: Testing en localhost (mismo dispositivo)
+
+#### Paso 1: Abrir la Notebook
 1. Abrí `http://localhost:3000/notebook/` en tu computadora
 2. La página genera claves efímeras y muestra un **código QR real**
 3. Esperá a que el celular escanee el QR
 
-### Paso 2: Escanear con el Celular
+#### Paso 2: Escanear con el Celular
 1. Abrí `http://localhost:3000/mobile/` en tu celular
 2. Permití el acceso a la cámara
 3. Apuntá al código QR de la notebook
 4. El celular firma la delegación y la envía automáticamente
 5. La notebook se actualiza mostrando "¡Sesión Autorizada!"
+
+### Modo 2: Testing con dispositivos reales (red local)
+
+Ver [docs/TESTING_REAL_DEVICES.md](./docs/TESTING_REAL_DEVICES.md) para instrucciones detalladas.
+
+**Resumen rápido:**
+```bash
+# 1. Obtener IP de la notebook
+npm run ip
+
+# 2. Iniciar servidor accesible desde la red
+npm run dev:network
+
+# 3. En la notebook: http://<IP>:3000/notebook/
+# 4. En el celular: http://<IP>:3000/mobile/
+# 5. Escanear QR con el celular
+```
+
+### Modo 3: Testing con HTTPS (recomendado para producción)
+
+```bash
+# 1. Generar certificados TLS
+npm run gen-certs
+
+# 2. Iniciar servidor HTTPS
+npm run dev:https
+
+# 3. En la notebook: https://localhost:3443/notebook/
+# 4. En el celular: https://<IP>:3443/mobile/
+# 5. Aceptar certificado auto-firmado en el navegador
+# 6. Escanear QR con el celular
+```
+
+Ver [docs/HTTPS_SETUP.md](./docs/HTTPS_SETUP.md) para configuración completa con Let's Encrypt, Nginx, o ngrok.
 
 ## 🔐 Flujo Criptográfico Completo
 
@@ -212,29 +304,86 @@ keypass-auth/
 
 ## 🔮 Próximos Pasos (Post-MVP)
 
-1. **Secure Enclave/Keystore:** Mover llave maestra a hardware seguro
-2. **JWT firmado:** Reemplazar sessionToken con JWT real
-3. **Rotación de claves:** Renovar llaves maestras periódicamente
-4. **Revocación:** Endpoint para invalidar sesiones activas
-5. **Multi-dispositivo:** Soporte para múltiples notebooks simultáneas
-6. **Persistencia:** Base de datos para sesiones y auditoría
-7. **HTTPS/WSS:** TLS para producción
-8. **Rate limiting:** Prevenir abuso del endpoint /api/verify
-9. **SDK móvil:** Librerías nativas iOS/Android
-10. **SDK web:** Widget embebible para cualquier sitio
+1. **Implementaciones nativas de KeyStore:** Secure Enclave (iOS) y Keystore (Android)
+2. **Rotación de claves:** Renovar llaves maestras periódicamente
+3. **Multi-dispositivo:** Soporte para múltiples notebooks simultáneas
+4. **Rate limiting:** Prevenir abuso del endpoint /api/verify
+5. **SDK móvil:** Librerías nativas iOS/Android
+6. **SDK web:** Widget embebible para cualquier sitio
+7. **OAuth 2.0:** Integración con proveedores de identidad
+8. **Biometría:** Autenticación con Face ID/Touch ID/Huella digital
+
+## 📡 API Endpoints
+
+### HTTP REST
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check con estadísticas |
+| GET | `/api/stats` | Estadísticas detalladas de DB |
+| POST | `/api/verify` | Verificar delegación criptográfica |
+| GET | `/api/verify-jwt` | Verificar JWT (Authorization: Bearer) |
+| GET | `/api/sessions` | Listar sesiones activas |
+| POST | `/api/revoke` | Revocar sesión por ID |
+| POST | `/api/revoke-by-sala` | Revocar sesiones por salaId |
+
+### WebSocket
+
+| Endpoint | Descripción |
+|----------|-------------|
+| `/ws` | Conexión WebSocket para comunicación en tiempo real |
+
+**Mensajes del servidor:**
+- `sala_asignada`: Asigna salaId a la notebook
+- `delegacion_recibida`: Retransmite delegación del celular
+- `delegacion_ack`: Confirma recepción de delegación
+- `error`: Mensaje de error
+
+**Mensajes del cliente:**
+- `delegacion_enviar`: Envía paquete de delegación al salaId
 
 ## 🧪 Testing
 
-### Prueba Automatizada
+### Pruebas Automatizadas
+
 ```bash
-npx tsx src/test-e2e.ts
+# Prueba end-to-end completa
+npm run test:e2e
+
+# Prueba de JWT
+npm run test:jwt
+
+# Prueba de revocación de sesiones
+npm run test:revoke
+
+# Prueba de KeyStore
+npm run test:keystore
 ```
-Simula el flujo completo sin navegadores y verifica:
+
+**test:e2e**: Simula el flujo completo sin navegadores y verifica:
 - Conexión WebSocket
 - Generación de claves
 - Firma de delegación
 - Retransmisión por servidor
 - Verificación criptográfica
+- Generación de JWT
+
+**test:jwt**: Prueba el flujo completo de JWT:
+- Generación de JWT firmado con ECDSA
+- Verificación de JWT
+- Decodificación de payload
+
+**test:revoke**: Prueba la revocación de sesiones:
+- Creación de sesión
+- Listado de sesiones activas
+- Revocación de sesión
+- Verificación de revocación
+
+**test:keystore**: Prueba el almacenamiento seguro de claves:
+- Generación de claves
+- Obtención de clave pública
+- Firma de datos
+- Listado y eliminación de claves
 - Generación de session token
 
 ### Demo CLI (v1)
@@ -242,6 +391,12 @@ Simula el flujo completo sin navegadores y verifica:
 npm run demo
 ```
 Ejecuta la demostración original sin frontends.
+
+## 📖 Documentación
+
+- [Testing con Dispositivos Reales](./docs/TESTING_REAL_DEVICES.md) - Guía completa para probar con notebook y celular
+- [Configuración HTTPS](./docs/HTTPS_SETUP.md) - Configuración de TLS para producción
+- [Guía de KeyStore](./docs/KEYSTORE_GUIDE.md) - Implementación de almacenamiento seguro de claves
 
 ## 📚 Referencias
 
