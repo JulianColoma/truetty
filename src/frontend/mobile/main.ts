@@ -18,6 +18,7 @@ import type {
   DelegationResult,
   WSServerMessage,
 } from "../../shared/types.js";
+import { getCryptoSubtle } from "../shared/webcrypto-shim.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ELEMENTOS DEL DOM
@@ -97,12 +98,13 @@ async function cargarOGenerarLlaveMaestra(): Promise<void> {
   console.log("🔑 [MOBILE] Cargando llave maestra...");
 
   const stored = localStorage.getItem(STORAGE_KEY);
+  const subtle = getCryptoSubtle();
 
   if (stored) {
     // Importar llave existente
     try {
       const jwkPriv = JSON.parse(stored);
-      const keyPair = await crypto.subtle.importKey(
+      const keyPair = await subtle.importKey(
         "jwk",
         jwkPriv,
         { name: "ECDSA", namedCurve: "P-256" },
@@ -111,7 +113,7 @@ async function cargarOGenerarLlaveMaestra(): Promise<void> {
       );
 
       // Extraer la clave pública
-      const pubKey = await crypto.subtle.exportKey("jwk", keyPair);
+      const pubKey = await subtle.exportKey("jwk", keyPair);
       // La clave importada es privada, necesitamos la pública
       // Para eso, generamos un par nuevo y comparamos... o mejor:
       // Importamos solo la parte pública
@@ -137,7 +139,7 @@ async function cargarOGenerarLlaveMaestra(): Promise<void> {
   // Generar nueva llave maestra
   console.log("🔐 [MOBILE] Generando nueva llave maestra ECDSA P-256...");
 
-  const keyPair = await crypto.subtle.generateKey(
+  const keyPair = await subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
     true,
     ["sign", "verify"]
@@ -147,11 +149,11 @@ async function cargarOGenerarLlaveMaestra(): Promise<void> {
 
   // Exportar clave privada como JWK para persistir
   // ⚠️ Solo para demo. En producción: usar Secure Enclave/Keystore
-  const privateJWK = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+  const privateJWK = await subtle.exportKey("jwk", keyPair.privateKey);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(privateJWK));
 
   // Exportar clave pública
-  clavePublicaMaestraJWK = (await crypto.subtle.exportKey(
+  clavePublicaMaestraJWK = (await subtle.exportKey(
     "jwk",
     keyPair.publicKey
   )) as JWK;
@@ -272,7 +274,8 @@ async function procesarDelegacion(qrData: QRPayload): Promise<void> {
   const payloadJSON = JSON.stringify(payload);
   const payloadBytes = new TextEncoder().encode(payloadJSON);
 
-  const firmaBuffer = await crypto.subtle.sign(
+  const subtle = getCryptoSubtle();
+  const firmaBuffer = await subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     clavePrivadaMaestra,
     payloadBytes
