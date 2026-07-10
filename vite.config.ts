@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         notebook: resolve(__dirname, "src/frontend/notebook/index.html"),
         mobile: resolve(__dirname, "src/frontend/mobile/index.html"),
+        admin: resolve(__dirname, "src/frontend/admin/index.html"),
       },
     },
   },

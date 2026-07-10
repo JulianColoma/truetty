@@ -51,6 +51,17 @@ export interface AuditLog {
   timestamp: number; // Timestamp Unix
 }
 
+export interface App {
+  id: string; // UUID
+  client_id: string; // UUID público para el SDK
+  nombre: string; // Nombre de la aplicación
+  descripcion?: string; // Descripción opcional
+  developer_id: string; // ID del desarrollador propietario
+  estado: "activa" | "inactiva"; // Estado de la aplicación
+  creado_en: number; // Timestamp Unix
+  actualizado_en: number; // Timestamp Unix
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════════════════════════
@@ -163,6 +174,30 @@ function crearTablas(): void {
   // Índice para buscar logs por evento
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_audit_evento ON audit_log(evento)
+  `);
+
+  // Tabla de aplicaciones
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS apps (
+      id TEXT PRIMARY KEY,
+      client_id TEXT UNIQUE NOT NULL,
+      nombre TEXT NOT NULL,
+      descripcion TEXT,
+      developer_id TEXT NOT NULL,
+      estado TEXT NOT NULL CHECK(estado IN ('activa', 'inactiva')),
+      creado_en INTEGER NOT NULL,
+      actualizado_en INTEGER NOT NULL
+    )
+  `);
+
+  // Índice para buscar apps por developer_id
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_apps_developer ON apps(developer_id)
+  `);
+
+  // Índice para buscar apps por client_id
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_apps_client_id ON apps(client_id)
   `);
 
   console.log("✅ [DB] Tablas creadas");
@@ -378,6 +413,8 @@ export function obtenerEstadisticasDB(): {
   totalDelegaciones: number;
   delegacionesValidas: number;
   totalAuditLogs: number;
+  totalApps: number;
+  appsActivas: number;
 } {
   if (!db) throw new Error("Base de datos no inicializada");
 
@@ -388,6 +425,8 @@ export function obtenerEstadisticasDB(): {
   const totalDelegaciones = (db.prepare("SELECT COUNT(*) as count FROM delegations").get() as any).count;
   const delegacionesValidas = (db.prepare("SELECT COUNT(*) as count FROM delegations WHERE valido = 1").get() as any).count;
   const totalAuditLogs = (db.prepare("SELECT COUNT(*) as count FROM audit_log").get() as any).count;
+  const totalApps = (db.prepare("SELECT COUNT(*) as count FROM apps").get() as any).count;
+  const appsActivas = (db.prepare("SELECT COUNT(*) as count FROM apps WHERE estado = 'activa'").get() as any).count;
 
   return {
     totalSesiones,
@@ -397,6 +436,8 @@ export function obtenerEstadisticasDB(): {
     totalDelegaciones,
     delegacionesValidas,
     totalAuditLogs,
+    totalApps,
+    appsActivas,
   };
 }
 
@@ -417,4 +458,95 @@ export function cerrarDatabase(): void {
 export function getDatabase(): Database.Database {
   if (!db) throw new Error("Base de datos no inicializada");
   return db;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPERACIONES DE APLICACIONES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Crea una nueva aplicación en la base de datos
+ */
+export function crearApp(app: App): void {
+  if (!db) throw new Error("Base de datos no inicializada");
+
+  const stmt = db.prepare(`
+    INSERT INTO apps (
+      id, client_id, nombre, descripcion, developer_id, estado, creado_en, actualizado_en
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    app.id,
+    app.client_id,
+    app.nombre,
+    app.descripcion || null,
+    app.developer_id,
+    app.estado,
+    app.creado_en,
+    app.actualizado_en
+  );
+
+  console.log(`✅ [DB] Aplicación creada: ${app.nombre} (${app.client_id})`);
+}
+
+/**
+ * Obtiene todas las aplicaciones de un desarrollador
+ */
+export function obtenerAppsPorDeveloper(developerId: string): App[] {
+  if (!db) throw new Error("Base de datos no inicializada");
+
+  const stmt = db.prepare(
+    "SELECT * FROM apps WHERE developer_id = ? ORDER BY creado_en DESC"
+  );
+  const rows = stmt.all(developerId) as any[];
+
+  return rows.map((row) => ({
+    ...row,
+    estado: row.estado as "activa" | "inactiva",
+  }));
+}
+
+/**
+ * Obtiene una aplicación por su client_id
+ */
+export function obtenerAppPorClientId(clientId: string): App | null {
+  if (!db) throw new Error("Base de datos no inicializada");
+
+  const stmt = db.prepare("SELECT * FROM apps WHERE client_id = ?");
+  const row = stmt.get(clientId) as any;
+
+  if (!row) return null;
+
+  return {
+    ...row,
+    estado: row.estado as "activa" | "inactiva",
+  };
+}
+
+/**
+ * Actualiza el estado de una aplicación
+ */
+export function actualizarEstadoApp(clientId: string, estado: "activa" | "inactiva"): boolean {
+  if (!db) throw new Error("Base de datos no inicializada");
+
+  const stmt = db.prepare(`
+    UPDATE apps
+    SET estado = ?, actualizado_en = ?
+    WHERE client_id = ?
+  `);
+
+  const result = stmt.run(estado, Date.now(), clientId);
+  return result.changes > 0;
+}
+
+/**
+ * Elimina una aplicación
+ */
+export function eliminarApp(clientId: string): boolean {
+  if (!db) throw new Error("Base de datos no inicializada");
+
+  const stmt = db.prepare("DELETE FROM apps WHERE client_id = ?");
+  const result = stmt.run(clientId);
+  return result.changes > 0;
 }

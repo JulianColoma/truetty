@@ -36,7 +36,8 @@ import {
 } from "./rooms.js";
 import { verificarPaquete } from "./crypto-verifier.js";
 import { initJWT } from "./jwt.js";
-import { initDatabase, obtenerEstadisticasDB, cerrarDatabase } from "./database.js";
+import { initDatabase, obtenerEstadisticasDB, cerrarDatabase, crearApp, obtenerAppsPorDeveloper } from "./database.js";
+import { v4 as uuidv4 } from "uuid";
 import type {
   WSClientMessage,
   DelegationResult,
@@ -111,6 +112,126 @@ server.get("/api/stats", async () => {
     timestamp: Date.now(),
     estadisticas: dbStats,
   };
+});
+
+/**
+ * POST /api/apps
+ * 
+ * Endpoint para registrar una nueva aplicación.
+ * Genera un client_id único y lo asocia al desarrollador.
+ */
+server.post<{
+  Body: { nombre: string; descripcion?: string; developer_id: string };
+}>("/api/apps", async (request, reply) => {
+  const { nombre, descripcion, developer_id } = request.body;
+
+  console.log("\n" + "═".repeat(60));
+  console.log("📥 [API] POST /api/apps recibido");
+  console.log(`   Nombre: ${nombre}`);
+  console.log(`   Developer: ${developer_id}`);
+  console.log("═".repeat(60));
+
+  // Validar campos requeridos
+  if (!nombre || !developer_id) {
+    return reply.status(400).send({
+      valido: false,
+      mensaje: "Body inválido. Se requiere 'nombre' y 'developer_id'.",
+    });
+  }
+
+  // Generar IDs únicos
+  const id = uuidv4();
+  const client_id = uuidv4();
+  const ahora = Date.now();
+
+  // Crear aplicación
+  try {
+    crearApp({
+      id,
+      client_id,
+      nombre,
+      descripcion: descripcion || null,
+      developer_id,
+      estado: "activa",
+      creado_en: ahora,
+      actualizado_en: ahora,
+    });
+
+    console.log(`✅ [API] Aplicación creada: ${client_id}`);
+
+    return reply.status(201).send({
+      valido: true,
+      mensaje: "Aplicación creada exitosamente",
+      app: {
+        id,
+        client_id,
+        nombre,
+        descripcion,
+        developer_id,
+        estado: "activa",
+        creado_en: ahora,
+        actualizado_en: ahora,
+      },
+    });
+  } catch (error) {
+    console.error("❌ [API] Error creando aplicación:", error);
+    return reply.status(500).send({
+      valido: false,
+      mensaje: "Error interno del servidor",
+    });
+  }
+});
+
+/**
+ * GET /api/apps
+ * 
+ * Endpoint para listar todas las aplicaciones de un desarrollador.
+ * Requiere query param: developer_id
+ */
+server.get<{
+  Querystring: { developer_id: string };
+}>("/api/apps", async (request, reply) => {
+  const { developer_id } = request.query;
+
+  console.log("\n" + "═".repeat(60));
+  console.log("📥 [API] GET /api/apps recibido");
+  console.log(`   Developer: ${developer_id}`);
+  console.log("═".repeat(60));
+
+  // Validar campo requerido
+  if (!developer_id) {
+    return reply.status(400).send({
+      valido: false,
+      mensaje: "Query param 'developer_id' es requerido.",
+    });
+  }
+
+  try {
+    const apps = obtenerAppsPorDeveloper(developer_id);
+
+    console.log(`✅ [API] ${apps.length} aplicaciones encontradas`);
+
+    return reply.status(200).send({
+      status: "ok",
+      timestamp: Date.now(),
+      total: apps.length,
+      apps: apps.map((app) => ({
+        id: app.id,
+        client_id: app.client_id,
+        nombre: app.nombre,
+        descripcion: app.descripcion,
+        estado: app.estado,
+        creado_en: app.creado_en,
+        actualizado_en: app.actualizado_en,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ [API] Error obteniendo aplicaciones:", error);
+    return reply.status(500).send({
+      valido: false,
+      mensaje: "Error interno del servidor",
+    });
+  }
 });
 
 /**
@@ -465,6 +586,10 @@ server.get("/notebook", async (request, reply) => {
 
 server.get("/mobile", async (request, reply) => {
   return reply.redirect("/mobile/");
+});
+
+server.get("/admin", async (request, reply) => {
+  return reply.redirect("/admin/");
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

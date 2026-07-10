@@ -18,6 +18,7 @@ import type {
   WSServerMessage,
   VerifyResponse,
 } from "../../shared/types.js";
+import { getCryptoSubtle } from "../shared/webcrypto-shim.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ELEMENTOS DEL DOM
@@ -84,14 +85,15 @@ function getApiUrl(): string {
 async function generarClavesEfimeras(): Promise<void> {
   console.log("🔐 [NOTEBOOK] Generando claves efímeras ECDSA P-256...");
 
-  const keyPair = await crypto.subtle.generateKey(
+  const subtle = getCryptoSubtle();
+  const keyPair = await subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
     true,
     ["sign", "verify"]
   );
 
   clavePrivadaEfimera = keyPair.privateKey;
-  clavePublicaEfimeraJWK = (await crypto.subtle.exportKey(
+  clavePublicaEfimeraJWK = (await subtle.exportKey(
     "jwk",
     keyPair.publicKey
   )) as JWK;
@@ -130,7 +132,7 @@ async function generarQR(): Promise<void> {
   console.log("   Payload size:", qrString.length, "caracteres");
 
   // Renderizar QR en el contenedor
-  await QRCode.toCanvas(elQRCode, qrString, {
+  const qrDataUrl = await QRCode.toDataURL(qrString, {
     width: 280,
     margin: 2,
     color: {
@@ -138,6 +140,8 @@ async function generarQR(): Promise<void> {
       light: "#ffffff",
     },
   });
+
+  elQRCode.innerHTML = `<img src="${qrDataUrl}" alt="QR Code" />`;
 
   elSalaId.textContent = salaId;
   console.log("✅ [NOTEBOOK] QR renderizado");
